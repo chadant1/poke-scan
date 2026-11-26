@@ -5,12 +5,13 @@ name: Update prices (free, from TCGCSV)
 on:
   schedule:
     - cron: '37 21 * * *'   # TCGCSV refreshes around 20:00 UTC
+    - cron: '7 1-23/4 * * *' # extra runs only load more history until a full year is in (otherwise they do nothing)
   workflow_dispatch:
     inputs:
       backfill_days:
-        description: 'Also load this many past days from the TCGCSV archive (only needed once)'
+        description: 'How many days of history to keep loading from the TCGCSV archive'
         required: false
-        default: '0'
+        default: '366'
   push:
     branches: [main]
     paths:
@@ -49,15 +50,13 @@ jobs:
       - name: Build price files
         run: |
           BF="${{ github.event.inputs.backfill_days }}"
-          BF="${BF:-0}"
-          # First run ever: load the past year from the archive (downloaded once only).
-          if [ ! -f data/groups.json ] && [ "$BF" = "0" ]; then BF=366; fi
-          echo "Backfill days: $BF"
-          python3 tools/build_prices.py --data data --out out --backfill-days "$BF"
+          # History is loaded in polite chunks (a few weeks per run) until a year is in.
+          python3 -u tools/build_prices.py --data data --out out --backfill-days "${BF:-366}"
           du -sh out
 
       - name: Publish to the data branch
         run: |
+          if [ -f out/.nothing-new ]; then echo "Nothing new to publish."; exit 0; fi
           cd out
           cat > README.md <<'MD'
           # PokeScan price data
