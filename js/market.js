@@ -60,9 +60,11 @@ function findProduct(g, name, number) {
 const PRINT_ORDER = ['Holofoil', 'Normal', '1st Edition Holofoil', 'Unlimited Holofoil', '1st Edition Normal', 'Unlimited', 'Reverse Holofoil'];
 
 function expand(h, endDay) {
-  // One point per day. Short gaps mean "price unchanged" (step); long gaps are
-  // the weekly-sampled older part, so draw a straight line between them.
+  // One point per day. In the last 120 days the data is daily and stored only
+  // when the price changes, so a gap means "unchanged" (step). Older data is
+  // sampled weekly, so there we draw a straight line between the samples.
   if (!h || !h.length) return [];
+  const dailyFrom = endDay - 120;
   const out = [];
   for (let i = 0; i < h.length; i++) {
     const [d0, c0] = h[i];
@@ -70,7 +72,7 @@ function expand(h, endDay) {
     const d1 = next ? next[0] : endDay + 1;
     const gap = d1 - d0;
     for (let d = d0; d < d1 && d <= endDay; d++) {
-      const v = next && gap >= 6 ? c0 + (next[1] - c0) * (d - d0) / gap : c0;
+      const v = next && gap >= 6 && d1 <= dailyFrom ? c0 + (next[1] - c0) * (d - d0) / gap : c0;
       out.push({ t: EPOCH + d * DAY + DAY / 2, price: Math.round(v) / 100, volume: null });
     }
   }
