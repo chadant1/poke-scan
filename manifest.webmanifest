@@ -1,0 +1,16 @@
+{
+  "name": "PokeScan – Card Identifier & Value",
+  "short_name": "PokeScan",
+  "description": "Scan a Pokémon card to identify its set and see its TCGplayer Near Mint value, 1-year price history and PSA 8/9/10 prices.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f1115",
+  "theme_color": "#2f6fdf",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

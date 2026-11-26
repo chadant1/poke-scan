@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>PokeScan – Card Identifier &amp; Value</title>
+  <meta name="description" content="Scan a Pokémon card to identify its set and see its TCGplayer Near Mint value, 1-year price history and PSA 8/9/10 prices.">
+  <meta name="theme-color" content="#f5f6f8" id="metaTheme">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="PokeScan">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+  <script>
+    // Apply saved theme before first paint so there is no flash.
+    try { document.documentElement.dataset.theme = localStorage.getItem('ps.theme') || 'system'; } catch (e) {}
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <button class="icon-btn hidden" id="backBtn" aria-label="Back">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg>
+    </button>
+    <h1 id="title">PokeScan</h1>
+    <button class="icon-btn" id="themeBtn" aria-label="Switch light / dark mode">
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="ico-sun"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22M4.9 4.9l1.8 1.8M17.3 17.3l1.8 1.8M4.9 19.1l1.8-1.8M17.3 6.7l1.8-1.8"/></svg>
+      <svg viewBox="0 0 24 24" aria-hidden="true" class="ico-moon"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+    </button>
+  </header>
+
+  <main id="main">
+    <!-- SCAN -->
+    <section class="view" id="view-scan" data-title="Scan a card">
+      <div class="camera-wrap" id="cameraWrap">
+        <video id="video" playsinline muted autoplay></video>
+        <div class="guide" id="guide" aria-hidden="true">
+          <span class="c tl"></span><span class="c tr"></span><span class="c bl"></span><span class="c br"></span>
+          <div class="band band-top"></div>
+          <div class="band band-bottom"></div>
+        </div>
+        <div class="cam-msg" id="camMsg">
+          <p id="camMsgText">Tap <b>Start camera</b> to scan a card.<br><small>Pictures are read on your phone and never saved.</small></p>
+          <button class="btn primary" id="startCamBtn">Start camera</button>
+        </div>
+        <div class="scan-status hidden" id="scanStatus"><span class="spinner"></span><span id="scanStatusText">Reading card…</span></div>
+      </div>
+      <p class="hint">Fill the frame with the card. Keep the <b>name</b> (top) and the <b>card number</b> (bottom, e.g. 116/086) sharp and free of glare.</p>
+      <div class="scan-actions">
+        <button class="btn icon" id="torchBtn" disabled aria-label="Flashlight">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 2h8l-2 7h4l-9 13 2-9H7z"/></svg>
+        </button>
+        <button class="shutter" id="scanBtn" disabled aria-label="Scan card"><span></span></button>
+        <label class="btn icon" aria-label="Read a photo instead">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="9" cy="10" r="1.8"/><path d="M21 16l-5-5-8 8"/></svg>
+          <input type="file" accept="image/*" id="photoInput" hidden>
+        </label>
+      </div>
+      <details class="ocr-debug" id="ocrDebug">
+        <summary>What the scanner read</summary>
+        <pre id="ocrText">Nothing yet.</pre>
+      </details>
+    </section>
+
+    <!-- CHOOSE (several possible matches) -->
+    <section class="view hidden" id="view-choose" data-title="Which card is it?">
+      <p class="lead" id="chooseLead"></p>
+      <div class="grid" id="chooseGrid"></div>
+      <div class="manual">
+        <p class="muted">Not here? Type what's on the card:</p>
+        <form id="manualForm" class="manual-form">
+          <input id="manualName" placeholder="Card name (e.g. Mega Greninja ex)" autocomplete="off">
+          <input id="manualNum" placeholder="No. (116)" inputmode="text" autocomplete="off">
+          <button class="btn primary">Find</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- SEARCH -->
+    <section class="view hidden" id="view-search" data-title="Search cards">
+      <form id="searchForm" class="search-form">
+        <input id="searchName" type="search" placeholder="Card name, e.g. Charizard ex" autocomplete="off">
+        <input id="searchNum" placeholder="No." autocomplete="off">
+        <button class="btn primary">Search</button>
+      </form>
+      <p class="muted small" id="searchInfo"></p>
+      <div class="grid" id="searchGrid"></div>
+    </section>
+
+    <!-- CARD -->
+    <section class="view hidden" id="view-card" data-title="Card"></section>
+
+    <!-- HISTORY -->
+    <section class="view hidden" id="view-history" data-title="Recent scans">
+      <div id="historyList" class="list"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section class="view hidden" id="view-settings" data-title="Settings">
+      <div class="panel">
+        <h2>Appearance</h2>
+        <div class="seg" id="themeSeg" role="radiogroup" aria-label="Theme">
+          <button data-v="system" role="radio">System</button>
+          <button data-v="light" role="radio">Light</button>
+          <button data-v="dark" role="radio">Dark</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Price data key</h2>
+        <p class="small">Prices, the 1-year graph and PSA 8 / 9 / 10 values come from <b>PokemonPriceTracker</b>, which tracks TCGplayer and eBay graded sales. Get a free key (no card needed) and paste it here.</p>
+        <a class="btn" href="https://www.pokemonpricetracker.com/api-signup" target="_blank" rel="noopener">Get a free key</a>
+        <label class="field">
+          <span>API key</span>
+          <input id="apiKey" type="password" autocomplete="off" spellcheck="false" placeholder="Paste your key">
+        </label>
+        <div class="row">
+          <button class="btn primary" id="saveKey">Save</button>
+          <button class="btn" id="testKey">Test key</button>
+          <button class="btn ghost" id="toggleKey">Show</button>
+        </div>
+        <p class="small muted" id="keyStatus"></p>
+        <p class="small muted">Free key: 100 credits a day, about 8–10 new cards. Results are kept on your phone for 12 hours, so opening a card again is free.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Privacy</h2>
+        <p class="small">The camera picture is read on this phone and then thrown away. It is never saved or uploaded. Only the card name and number go to the card and price services.</p>
+      </div>
+
+      <div class="panel">
+        <h2>Storage</h2>
+        <div class="row">
+          <button class="btn" id="clearCache">Clear saved prices</button>
+          <button class="btn danger" id="clearHistory">Clear recent scans</button>
+        </div>
+        <p class="small muted" id="cacheInfo"></p>
+      </div>
+
+      <p class="small muted center">PokeScan v1.0 · Card data: TCGdex · Prices: PokemonPriceTracker (TCGplayer, eBay)<br>Not affiliated with Nintendo, The Pokémon Company or TCGplayer.</p>
+    </section>
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button data-view="scan" class="active">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"/><rect x="8.5" y="7" width="7" height="10" rx="1"/></svg>
+      <span>Scan</span>
+    </button>
+    <button data-view="search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6"/><path d="M15 15l5 5"/></svg>
+      <span>Search</span>
+    </button>
+    <button data-view="history">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7L4 8.5"/><path d="M4 4v4.5h4.5M12 8v4l3 2"/></svg>
+      <span>Recent</span>
+    </button>
+    <button data-view="settings">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg>
+      <span>Settings</span>
+    </button>
+  </nav>
+
+  <div class="toast hidden" id="toast" role="status"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

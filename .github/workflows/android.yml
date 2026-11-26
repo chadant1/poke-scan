@@ -1,0 +1,76 @@
+name: Build Android app (APK)
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Copy the web app into a native wrapper
+        run: |
+          mkdir -p native/www
+          cp -r index.html manifest.webmanifest sw.js css js icons native/www/
+
+      - name: Create the Capacitor Android project
+        working-directory: native
+        run: |
+          npm init -y
+          npm install @capacitor/core@6 @capacitor/cli@6 @capacitor/android@6
+          npx cap init PokeScan com.chadant1.pokescan --web-dir www
+          npx cap add android
+          npx cap sync android
+
+      - name: Add camera permission
+        working-directory: native/android
+        run: |
+          sed -i 's#<uses-permission android:name="android.permission.INTERNET" />#<uses-permission android:name="android.permission.INTERNET" />\n    <uses-permission android:name="android.permission.CAMERA" />\n    <uses-feature android:name="android.hardware.camera" android:required="false" />#' app/src/main/AndroidManifest.xml
+          grep -n "permission\|uses-feature" app/src/main/AndroidManifest.xml
+
+      - name: Use the PokeScan icon
+        run: |
+          res=native/android/app/src/main/res
+          for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do
+            [ -f "$res/mipmap-$d/ic_launcher.png" ] && cp icons/icon-192.png "$res/mipmap-$d/ic_launcher.png" || true
+            [ -f "$res/mipmap-$d/ic_launcher_round.png" ] && cp icons/icon-192.png "$res/mipmap-$d/ic_launcher_round.png" || true
+            [ -f "$res/mipmap-$d/ic_launcher_foreground.png" ] && cp icons/icon-maskable-512.png "$res/mipmap-$d/ic_launcher_foreground.png" || true
+          done
+          f=$res/values/ic_launcher_background.xml
+          [ -f "$f" ] && sed -i 's/#FFFFFF/#1F408C/I' "$f" || true
+
+      - name: Build APK
+        working-directory: native/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk "$GITHUB_WORKSPACE/PokeScan.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PokeScan-android
+          path: PokeScan.apk
+
+      - name: Publish to the "latest" release (easy phone download)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest PokeScan.apk \
+            --title "PokeScan for Android (latest build)" \
+            --notes "Built from ${GITHUB_SHA::7}. On your Android phone, download PokeScan.apk and open it (allow installing apps from your browser when asked)."
