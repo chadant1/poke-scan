@@ -1,0 +1,73 @@
+name: Update prices (free, from TCGCSV)
+
+# Collects TCGplayer prices once a day from TCGCSV (a free daily mirror) and
+# publishes them to the `data` branch, which the app reads. No API key needed.
+on:
+  schedule:
+    - cron: '37 21 * * *'   # TCGCSV refreshes around 20:00 UTC
+  workflow_dispatch:
+    inputs:
+      backfill_days:
+        description: 'Also load this many past days from the TCGCSV archive (only needed once)'
+        required: false
+        default: '0'
+  push:
+    branches: [main]
+    paths:
+      - tools/build_prices.py
+      - .github/workflows/prices.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prices
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      REPO_URL: https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get the price data collected so far
+        run: |
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git clone -q --depth 1 --branch data "$REPO_URL" data
+          else
+            mkdir -p data
+          fi
+          ls data | head
+
+      - name: Make sure 7-Zip is installed
+        run: command -v 7z || (sudo apt-get update -q && sudo apt-get install -y -q p7zip-full)
+
+      - name: Build price files
+        run: |
+          BF="${{ github.event.inputs.backfill_days }}"
+          BF="${BF:-0}"
+          # First run ever: load the past year from the archive (downloaded once only).
+          if [ ! -f data/groups.json ] && [ "$BF" = "0" ]; then BF=366; fi
+          echo "Backfill days: $BF"
+          python3 tools/build_prices.py --data data --out out --backfill-days "$BF"
+          du -sh out
+
+      - name: Publish to the data branch
+        run: |
+          cd out
+          cat > README.md <<'MD'
+          # PokeScan price data
+          Built automatically every day by `.github/workflows/prices.yml` from [TCGCSV](https://tcgcsv.com), a free daily mirror of TCGplayer prices. Thank you, TCGCSV!
+          - `groups.json` lists the Pokémon sets.
+          - `g/<groupId>.json` has each set's cards, current Near Mint market and low prices, and daily price history (`[day since 2024-01-01, cents]`, stored only when the price changes).
+          MD
+          git init -q -b data
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "Prices for $(date -u +%F)"
+          git push -q -f "$REPO_URL" data

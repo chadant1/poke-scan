@@ -412,11 +412,10 @@ async function loadPrices(card, numberStr, token, force) {
 
 function priceHTML(card, p, numberStr) {
   const s1y = chart.stats(p.history || []);
-  const delta = s1y && s1y.change != null
+  const delta = s1y && s1y.change != null && s1y.days > 1
     ? `<span class="delta ${s1y.change >= 0 ? 'up' : 'down'}">${arrow(s1y.change >= 0)}${pct(s1y.change)} <span class="muted small">(${s1y.days >= 330 ? '1Y' : s1y.days + 'd'})</span></span>` : '';
-  const last = p.history?.length ? p.history[p.history.length - 1] : null;
-  const noKey = p.source === 'tcgdex';
   const q = encodeURIComponent(`${card.name} ${numberStr}`);
+  const hasHistory = (p.history || []).length > 1;
 
   let html = `
   <div class="panel">
@@ -428,49 +427,40 @@ function priceHTML(card, p, numberStr) {
       ${delta}
     </div>
     <dl class="kv" style="margin-top:10px">
-      ${last ? `<dt>Latest daily price</dt><dd>${money(last.price)} <span class="muted small">${esc(when(last.t))}</span></dd>` : ''}
-      ${p.low != null ? `<dt>${noKey ? 'Low listing' : 'Lowest listing'}</dt><dd>${money(p.low)}</dd>` : ''}
+      ${p.low != null ? `<dt>Lowest listing</dt><dd>${money(p.low)}</dd>` : ''}
       ${p.mid != null ? `<dt>Mid listing</dt><dd>${money(p.mid)}</dd>` : ''}
       ${p.high != null ? `<dt>High listing</dt><dd>${money(p.high)}</dd>` : ''}
-      ${p.listings != null ? `<dt>Current listings</dt><dd>${esc(p.listings)}</dd>` : ''}
-      ${p.sellers != null ? `<dt>Current sellers</dt><dd>${esc(p.sellers)}</dd>` : ''}
-      ${p.updated ? `<dt>Price updated</dt><dd>${esc(when(p.updated))}</dd>` : ''}
+      ${(p.others || []).map(o => `<dt>${esc(o.printing)} (NM)</dt><dd>${money(o.market)}</dd>`).join('')}
+      ${p.updated ? `<dt>Price updated</dt><dd>${esc(when(String(p.updated).length === 10 ? p.updated + 'T12:00:00' : p.updated))}</dd>` : ''}
     </dl>
     <div class="actions">
       <a class="btn" href="${esc(p.url)}" target="_blank" rel="noopener">View on TCGplayer</a>
-      ${noKey ? '' : '<button class="btn ghost" id="refreshPrices">Refresh</button>'}
+      <button class="btn ghost" id="refreshPrices">Refresh</button>
     </div>
-    ${p.cached ? `<p class="small muted" style="margin:8px 0 0">Saved ${esc(ago(p.fetchedAt))} – tap Refresh for the newest data.</p>` : ''}
+    ${p.market == null ? '<p class="small muted" style="margin:8px 0 0">No TCGplayer price is listed for this card yet.</p>' : ''}
   </div>`;
-
-  if (noKey) {
-    html += `<div class="notice">Add your free <a href="#settings">PokemonPriceTracker key in Settings</a> to see the 1-year price graph and PSA 8 / 9 / 10 prices.</div>`;
-    if (p.market == null) html += `<div class="notice">No TCGplayer price is listed for this card yet.</div>`;
-    return html;
-  }
 
   // Price history
-  html += `
-  <div class="panel">
-    <div class="chart-head">
-      <h3 style="margin:0">Market price history <small>Near Mint</small></h3>
-      <div class="ranges" role="tablist">
-        <button data-d="30">1M</button><button data-d="91">3M</button><button data-d="182">6M</button><button data-d="366" class="on">1Y</button>
-      </div>
-    </div>
-    <div class="chart-box" id="chartBox"></div>
-    <p class="chart-sub" id="chartSub"></p>
-    <details class="table-toggle"><summary>Show as a table</summary><div class="table-wrap" id="chartTable"></div></details>
-  </div>`;
-
-  // 1-year snapshot
-  if (s1y) {
+  if (hasHistory) {
+    const last = p.history[p.history.length - 1];
     html += `
     <div class="panel">
-      <h3>1 year snapshot <small>${esc(when(p.history[0].t))} – ${esc(when(last.t))}</small></h3>
+      <div class="chart-head">
+        <h3 style="margin:0">Market price history <small>Near Mint</small></h3>
+        <div class="ranges" role="tablist">
+          <button data-d="30">1M</button><button data-d="91">3M</button><button data-d="182">6M</button><button data-d="366" class="on">1Y</button>
+        </div>
+      </div>
+      <div class="chart-box" id="chartBox"></div>
+      <p class="chart-sub" id="chartSub"></p>
+      <details class="table-toggle"><summary>Show as a table</summary><div class="table-wrap" id="chartTable"></div></details>
+    </div>
+    <div class="panel">
+      <h3>${s1y.days >= 330 ? '1 year' : esc(s1y.days) + '-day'} snapshot <small>${esc(when(p.history[0].t))} – ${esc(when(last.t))}</small></h3>
       <dl class="kv">
         <dt>Low market price</dt><dd>${money(s1y.low)}</dd>
         <dt>High market price</dt><dd>${money(s1y.high)}</dd>
+        <dt>Change</dt><dd><span class="delta ${s1y.change >= 0 ? 'up' : 'down'}">${arrow(s1y.change >= 0)}${pct(s1y.change)}</span></dd>
         ${s1y.totalSold != null ? `<dt>Total sold (NM)</dt><dd>${s1y.totalSold.toLocaleString()}</dd>
         <dt>Avg. daily sold</dt><dd>${s1y.avgDaily < 10 ? s1y.avgDaily.toFixed(1) : Math.round(s1y.avgDaily)}</dd>` : ''}
       </dl>
@@ -478,21 +468,31 @@ function priceHTML(card, p, numberStr) {
   }
 
   // Graded
-  const g = p.graded || {};
+  const g = p.graded;
   const gradeTile = n => {
-    const d = g[n];
+    const d = g && g[n];
     const ebay = `https://www.ebay.com/sch/i.html?_nkw=${q}+PSA+${n}&LH_Sold=1&LH_Complete=1`;
+    const sub = !g ? 'Recent sold prices'
+      : d && d.last ? 'Last sale ' + money(d.last.price) + (d.last.date ? ' · ' + esc(when(d.last.date)) : '')
+      : d && d.count ? esc(d.count) + ' sale' + (d.count == 1 ? '' : 's') : 'No recent sales';
     return `<a class="grade" href="${esc(ebay)}" target="_blank" rel="noopener" style="text-decoration:none;color:inherit">
       <div class="g">PSA ${n}</div>
-      <div class="p">${d && d.price ? money(d.price) : '–'}</div>
-      <div class="n">${d && d.last ? 'Last sale ' + money(d.last.price) + (d.last.date ? ' · ' + esc(when(d.last.date)) : '') : d && d.count ? esc(d.count) + ' sale' + (d.count == 1 ? '' : 's') : 'No recent sales'}</div>
+      <div class="p">${d && d.price ? money(d.price) : g ? '–' : '<span style="font-size:15px">eBay ›</span>'}</div>
+      <div class="n">${sub}</div>
     </a>`;
   };
+  const foot = g
+    ? 'Market value from recent sold PSA copies on eBay &amp; Fanatics (PokemonPriceTracker). Tap a grade to see the sold listings.'
+    : p.gradedError
+      ? esc(p.gradedError) + ' Tap a grade to see sold listings on eBay.'
+      : prices.getKey()
+        ? 'Graded prices aren’t available for this card. Tap a grade to see sold listings on eBay.'
+        : 'Tap a grade to see recent sold prices on eBay. To show PSA prices right here, add a free PokemonPriceTracker key in <a href="#settings">Settings</a>.';
   html += `
   <div class="panel">
-    <h3>Graded prices <small>recent eBay &amp; Fanatics sales</small></h3>
+    <h3>Graded prices <small>PSA 8 · 9 · 10</small></h3>
     <div class="graded">${gradeTile(8)}${gradeTile(9)}${gradeTile(10)}</div>
-    <p class="small muted" style="margin:8px 0 0">Market value from recent sold graded copies. Tap a grade to see sold listings on eBay.</p>
+    <p class="small muted" style="margin:8px 0 0">${foot}</p>
   </div>`;
   return html;
 }
@@ -501,20 +501,17 @@ function wirePriceArea(card, p, numberStr, token) {
   const rb = $('#refreshPrices');
   if (rb) rb.onclick = () => loadPrices(card, numberStr, token, true);
   const box = $('#chartBox');
-  if (!box || !p.history?.length) {
-    if (box) box.innerHTML = '<p class="muted small">No price history is available for this card yet.</p>';
-    return;
-  }
+  if (!box) return;
   let days = 366;
   const draw = () => {
     const pts = chart.sliceRange(p.history, days);
     chart.render(box, pts);
     const st = chart.stats(pts);
     $('#chartSub').innerHTML = st
-      ? `Range ${money(st.low)} – ${money(st.high)} · <span class="delta ${st.change >= 0 ? 'up' : 'down'}" style="font-size:11px">${arrow(st.change >= 0)}${pct(st.change)}</span>${st.totalSold != null ? ` · ${st.totalSold.toLocaleString()} sold` : ''}. Bars show copies sold${pts.length && (pts[pts.length - 1].t - pts[0].t) / 864e5 > 120 ? ' per week' : ' per day'}.`
+      ? `Range ${money(st.low)} – ${money(st.high)} · <span class="delta ${st.change >= 0 ? 'up' : 'down'}" style="font-size:11px">${arrow(st.change >= 0)}${pct(st.change)}</span>${st.totalSold != null ? ` · ${st.totalSold.toLocaleString()} sold. Bars show copies sold${pts.length && (pts[pts.length - 1].t - pts[0].t) / 864e5 > 120 ? ' per week' : ' per day'}` : ''}. Daily TCGplayer market price.`
       : '';
-    $('#chartTable').innerHTML = `<table><thead><tr><th>Date</th><th>Market</th><th>Sold</th></tr></thead><tbody>${
-      pts.slice().reverse().map(x => `<tr><td>${esc(when(x.t))}</td><td>${money(x.price)}</td><td>${x.volume ?? '–'}</td></tr>`).join('')}</tbody></table>`;
+    $('#chartTable').innerHTML = `<table><thead><tr><th>Date</th><th>Market</th></tr></thead><tbody>${
+      pts.slice().reverse().map(x => `<tr><td>${esc(when(x.t))}</td><td>${money(x.price)}</td></tr>`).join('')}</tbody></table>`;
   };
   document.querySelectorAll('.ranges button').forEach(b => b.addEventListener('click', () => {
     document.querySelectorAll('.ranges button').forEach(x => x.classList.toggle('on', x === b));
@@ -568,7 +565,7 @@ function renderSettings() {
   const c = store.get('pptCredits');
   $('#keyStatus').textContent = prices.getKey()
     ? (c ? `Key saved. ${c.n.toLocaleString()} credits left (as of ${ago(c.t)}).` : 'Key saved.')
-    : 'No key yet – the app will show TCGplayer market prices only.';
+    : 'No key – NM prices and the graph still work; PSA buttons open eBay sold listings.';
   $('#cacheInfo').textContent = `Using about ${Math.round(store.cacheBytes() / 1024)} KB on this phone.`;
   applyTheme(document.documentElement.dataset.theme);
 }

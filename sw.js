@@ -1,9 +1,9 @@
 // Service worker: lets the app open offline and keeps the text-reader files
 // (Tesseract) and card pictures cached so later scans start fast.
-const VERSION = 'pokescan-v1';
+const VERSION = 'pokescan-v2';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/app.js', 'js/store.js', 'js/net.js', 'js/tcgdex.js', 'js/parse.js', 'js/ocr.js', 'js/identify.js', 'js/prices.js', 'js/chart.js',
+  'js/app.js', 'js/store.js', 'js/net.js', 'js/tcgdex.js', 'js/parse.js', 'js/ocr.js', 'js/identify.js', 'js/prices.js', 'js/market.js', 'js/chart.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/card-back.svg',
 ];
 

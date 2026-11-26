@@ -109,8 +109,13 @@
       </div>
 
       <div class="panel">
-        <h2>Price data key</h2>
-        <p class="small">Prices, the 1-year graph and PSA 8 / 9 / 10 values come from <b>PokemonPriceTracker</b>, which tracks TCGplayer and eBay graded sales. Get a free key (no card needed) and paste it here.</p>
+        <h2>Prices</h2>
+        <p class="small">TCGplayer Near Mint prices and the 1-year graph are <b>free</b>. They are collected once a day from TCGCSV, a free daily copy of TCGplayer's prices, by this app's own GitHub job. No key needed.</p>
+      </div>
+
+      <div class="panel">
+        <h2>PSA 8 / 9 / 10 prices <small class="muted">optional</small></h2>
+        <p class="small">To show graded prices inside the app, get a key on PokemonPriceTracker's <b>Free plan ($0, no card)</b> and paste it here. Without a key, the PSA buttons open recent sold listings on eBay.</p>
         <a class="btn" href="https://www.pokemonpricetracker.com/api-signup" target="_blank" rel="noopener">Get a free key</a>
         <label class="field">
           <span>API key</span>
@@ -122,7 +127,7 @@
           <button class="btn ghost" id="toggleKey">Show</button>
         </div>
         <p class="small muted" id="keyStatus"></p>
-        <p class="small muted">Free key: 100 credits a day, about 8–10 new cards. Results are kept on your phone for 12 hours, so opening a card again is free.</p>
+        <p class="small muted">The free plan gives 100 credits a day. Each card's PSA prices use 2 credits (about 50 cards a day) and are kept on your phone for 24 hours.</p>
       </div>
 
       <div class="panel">
@@ -139,7 +144,7 @@
         <p class="small muted" id="cacheInfo"></p>
       </div>
 
-      <p class="small muted center">PokeScan v1.0 · Card data: TCGdex · Prices: PokemonPriceTracker (TCGplayer, eBay)<br>Not affiliated with Nintendo, The Pokémon Company or TCGplayer.</p>
+      <p class="small muted center">PokeScan v1.0 · Card data: TCGdex · Prices: TCGplayer via TCGCSV · PSA: PokemonPriceTracker<br>Not affiliated with Nintendo, The Pokémon Company or TCGplayer.</p>
     </section>
   </main>
 
