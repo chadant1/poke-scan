@@ -8,6 +8,7 @@ import * as chart from './chart.js';
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 const money = chart.money;
+const titleCase = s => String(s || '').replace(/\b([a-z])/g, (m, c) => c.toUpperCase());
 
 /* =========================================================
    Theme (System / Light / Dark)
@@ -349,7 +350,7 @@ async function openCard(id) {
         <h2>${esc(card.name)} – ${esc(numberStr)}</h2>
         <div class="setline">${card.set?.symbol ? `<img src="${esc(tcgdex.setImg(card.set.symbol))}" alt="" onerror="this.remove()">` : ''}<span id="setLabel">${esc(setLabel)}</span></div>
         <div class="chips">
-          ${card.rarity ? `<span class="chip">${esc(card.rarity)}</span>` : ''}
+          ${card.rarity ? `<span class="chip">${esc(titleCase(card.rarity))}</span>` : ''}
           ${set?.releaseDate ? `<span class="chip">Released ${esc(when(set.releaseDate + 'T12:00:00'))}</span>` : ''}
           ${set?.serie ? `<span class="chip">${esc(set.serie)}</span>` : ''}
         </div>
@@ -371,7 +372,7 @@ async function openCard(id) {
 
 function detailsHTML(c, numberStr) {
   const rows = [];
-  rows.push(`<p><b>Card Number / Rarity:</b> ${esc(numberStr)}${c.rarity ? ' / ' + esc(c.rarity) : ''}</p>`);
+  rows.push(`<p><b>Card Number / Rarity:</b> ${esc(numberStr)}${c.rarity ? ' / ' + esc(titleCase(c.rarity)) : ''}</p>`);
   if (c.category === 'Pokemon') {
     rows.push(`<p><b>Card Type / HP / Stage:</b> ${esc((c.types || []).join(', ') || '–')} / ${esc(c.hp ?? '–')} / ${esc((c.stage || '–').replace(/^Stage(\d)$/, 'Stage $1'))}</p>`);
     if (c.evolveFrom) rows.push(`<p><b>Evolves from:</b> ${esc(c.evolveFrom)}</p>`);
